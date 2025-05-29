@@ -1,0 +1,599 @@
+<!DOCTYPE html><html lang="en"><head><meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://code.jquery.com https://unpkg.com https://d3js.org https://threejs.org https://cdn.plot.ly https://stackpath.bootstrapcdn.com https://maps.googleapis.com https://cdn.tailwindcss.com https://ajax.googleapis.com https://kit.fontawesome.com https://cdn.datatables.net https://maxcdn.bootstrapcdn.com https://code.highcharts.com https://tako-static-assets-production.s3.amazonaws.com https://www.youtube.com https://fonts.googleapis.com https://fonts.gstatic.com https://pfst.cf2.poecdn.net https://puc.poecdn.net https://i.imgur.com https://wikimedia.org https://*.icons8.com https://*.giphy.com https://picsum.photos https://images.unsplash.com; frame-src 'self' https://www.youtube.com https://trytako.com; child-src 'self'; manifest-src 'self'; worker-src 'self'; upgrade-insecure-requests; block-all-mixed-content;">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AMLMG Editor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#5D5CDE',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .node-block { color: #5D5CDE; }
+        .node-type { color: #E5A252; }
+        .node-name { color: #77BE65; }
+        .node-value { color: #C586C0; }
+        .node-depth { color: #AAAAAA; }
+        .node-scope { color: #4FC1E9; }
+        
+        .dark .node-block { color: #8583FF; }
+        .dark .node-type { color: #FFB86C; }
+        .dark .node-name { color: #8AFF65; }
+        .dark .node-value { color: #FF79C6; }
+        .dark .node-depth { color: #DDDDDD; }
+        .dark .node-scope { color: #8BE9FD; }
+        
+        .tree-node {
+            margin-left: 10px;
+            padding-left: 10px;
+            border-left: 1px dotted #ccc;
+        }
+        
+        .dark .tree-node {
+            border-left: 1px dotted #555;
+        }
+        
+        #resultFrame {
+            width: 100%;
+            height: 300px;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.5rem;
+        }
+        
+        #editor, #outputCode {
+            font-family: 'Courier New', monospace;
+            width: 100%;
+            min-height: 300px;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.5rem;
+            padding: 10px;
+            white-space: pre;
+            overflow: auto;
+            font-size: 14px;
+            line-height: 1.5;
+            background-color: white;
+            color: black;
+        }
+        
+        .dark #editor, .dark #outputCode {
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            border-color: #555;
+        }
+    </style>
+</head>
+<body class="bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 transition-colors">
+    <div class="container mx-auto p-4">
+        <header class="mb-6">
+            <div class="flex items-center justify-between mb-4">
+                <h1 class="text-3xl font-bold text-primary">AMLMG Editor</h1>
+                <button id="themeToggle" class="px-4 py-2 bg-primary text-white rounded hover:bg-opacity-90">
+                    Toggle Dark Mode
+                </button>
+            </div>
+            <p class="text-lg text-gray-600 dark:text-gray-400">Symbolic, tree-structured, hyper-compressed programming language</p>
+        </header>
+        
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- AMLMG Code Editor -->
+            <div class="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 shadow">
+                <h2 class="text-xl font-semibold mb-2">AMLMG Code</h2>
+                <textarea id="editor" class="mb-4" spellcheck="false"></textarea>
+                <div class="flex space-x-2">
+                    <button id="parseBtn" class="px-4 py-2 bg-primary text-white rounded hover:bg-opacity-90">
+                        Parse &amp; Compile
+                    </button>
+                    <button id="runBtn" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-opacity-90">
+                        Run Code
+                    </button>
+                    <button id="clearBtn" class="px-4 py-2 bg-red-500 text-white rounded hover:bg-opacity-90">
+                        Clear
+                    </button>
+                </div>
+            </div>
+            
+            <!-- AST Visualization -->
+            <div class="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 shadow">
+                <h2 class="text-xl font-semibold mb-2">AST Visualization</h2>
+                <div id="astView" class="p-2 bg-white dark:bg-gray-700 rounded-lg h-64 overflow-auto font-mono text-sm"></div>
+            </div>
+            
+            <!-- Compiled Output Tabs -->
+            <div class="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 shadow col-span-1 lg:col-span-2">
+                <div class="flex border-b border-gray-300 dark:border-gray-600 mb-4">
+                    <button class="tab-btn py-2 px-4 font-medium border-b-2 border-primary" data-tab="html">HTML</button>
+                    <button class="tab-btn py-2 px-4 font-medium" data-tab="css">CSS</button>
+                    <button class="tab-btn py-2 px-4 font-medium" data-tab="js">JavaScript</button>
+                    <button class="tab-btn py-2 px-4 font-medium" data-tab="py">Python</button>
+                    <button class="tab-btn py-2 px-4 font-medium" data-tab="result">Result</button>
+                </div>
+                
+                <div class="tab-content" id="htmlTab">
+                    <pre id="htmlOutput" class="p-2 bg-white dark:bg-gray-700 rounded-lg max-h-96 overflow-auto font-mono text-sm"></pre>
+                </div>
+                <div class="tab-content hidden" id="cssTab">
+                    <pre id="cssOutput" class="p-2 bg-white dark:bg-gray-700 rounded-lg max-h-96 overflow-auto font-mono text-sm"></pre>
+                </div>
+                <div class="tab-content hidden" id="jsTab">
+                    <pre id="jsOutput" class="p-2 bg-white dark:bg-gray-700 rounded-lg max-h-96 overflow-auto font-mono text-sm"></pre>
+                </div>
+                <div class="tab-content hidden" id="pyTab">
+                    <pre id="pyOutput" class="p-2 bg-white dark:bg-gray-700 rounded-lg max-h-96 overflow-auto font-mono text-sm"></pre>
+                </div>
+                <div class="tab-content hidden" id="resultTab">
+                    <iframe id="resultFrame" sandbox="allow-scripts"></iframe>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Check for dark mode preference
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.classList.add('dark');
+        }
+        
+        // Dark mode toggle
+        document.getElementById('themeToggle').addEventListener('click', () => {
+            document.documentElement.classList.toggle('dark');
+        });
+        
+        // Set default AMLMG example
+        const defaultExample = `(App)
+Header
+*txt:Hello, AMLMG
+
+(Style)
+body
+*bg:#fff
+*clr:#000
+.dark
+*bg:#222
+*clr:#eee
+#modeBtn
+*padding:10px
+*border:none
+*cursor:pointer
+*bg:#ccc
+*clr:#333
+
+(Script)
+(click->toggle-class)
+#modeBtn
+*"dark" [body]
+
+(Element)
+div
+*id:modeBtn
+*txt:Toggle Dark Mode
+
+(Function)
+calculate
+*args:a, b
+*result:a + b
+*return:result
+`;
+        
+        document.getElementById('editor').value = defaultExample;
+        
+        // AMLMG Tokenizer
+        function tokenize(source) {
+            return source.split(/\r?\n/).map(line => {
+                if (!line.trim()) return { type: "EMPTY" };
+                if (/^\(.*\)$/.test(line.trim())) return { type: "BLOCK", value: line.trim().slice(1, -1) };
+                if (line.trim().startsWith("txt:")) return { type: "TEXT", value: line.trim().slice(4) };
+                if (line.trim() === "=") return { type: "ASSIGN" };
+                if (/^\*+/.test(line)) {
+                    const depth = line.match(/^\*+/)[0].length;
+                    const rest = line.slice(depth).trim();
+                    const scopeMatch = rest.includes("[") ? rest.match(/\[(.*?)\]/) : null;
+                    const scope = scopeMatch ? scopeMatch[1].split(" ") : null;
+                    const cleaned = rest.replace(/\[.*?\]/, "").trim();
+                    const [key, val] = cleaned.includes(":") ? cleaned.split(":") : [cleaned, null];
+                    return { 
+                        type: "NODE", 
+                        depth, 
+                        key: key.trim(), 
+                        value: val?.trim(), 
+                        scope 
+                    };
+                }
+                return { type: "RAW", value: line };
+            }).filter(token => token.type !== "EMPTY");
+        }
+        
+        // AMLMG Parser
+        function parse(tokens) {
+            const root = { type: "Root", children: [] };
+            const stack = [root];
+            
+            for (let i = 0; i < tokens.length; i++) {
+                const token = tokens[i];
+                
+                if (token.type === "BLOCK") {
+                    const node = { type: "Block", name: token.value, children: [] };
+                    stack[0].children.push(node);
+                    stack.unshift(node);
+                } else if (token.type === "NODE") {
+                    // Pop from stack until we're at the right depth
+                    while (stack.length > 1 && 
+                           stack[0].type === "Node" && 
+                           stack[0].depth >= token.depth) {
+                        stack.shift();
+                    }
+                    
+                    const node = {
+                        type: "Node",
+                        name: token.key,
+                        value: token.value,
+                        depth: token.depth,
+                        scope: token.scope || null,
+                        children: []
+                    };
+                    
+                    stack[0].children.push(node);
+                    stack.unshift(node);
+                } else if (token.type === "TEXT") {
+                    stack[0].children.push({ type: "Text", value: token.value });
+                } else if (token.type === "ASSIGN") {
+                    // Handle assignments if needed
+                }
+            }
+            
+            return root;
+        }
+        
+        // Generate visual tree representation from AST
+        function visualizeAST(ast) {
+            let html = '';
+            
+            function renderNode(node, indent = 0) {
+                const padding = indent * 20;
+                
+                if (node.type === "Root") {
+                    html += `<div class="tree-node" style="margin-left:0;">`;
+                    html += `<span class="node-type">Root</span>`;
+                    html += `</div>`;
+                    
+                    node.children.forEach(child => {
+                        renderNode(child, indent + 1);
+                    });
+                } else if (node.type === "Block") {
+                    html += `<div class="tree-node" style="margin-left:${padding}px;">`;
+                    html += `<span class="node-block">(</span>`;
+                    html += `<span class="node-type">${node.name}</span>`;
+                    html += `<span class="node-block">)</span>`;
+                    html += `</div>`;
+                    
+                    node.children.forEach(child => {
+                        renderNode(child, indent + 1);
+                    });
+                } else if (node.type === "Node") {
+                    html += `<div class="tree-node" style="margin-left:${padding}px;">`;
+                    html += `<span class="node-depth">${'*'.repeat(node.depth)}</span> `;
+                    html += `<span class="node-name">${node.name}</span>`;
+                    
+                    if (node.value) {
+                        html += `: <span class="node-value">${node.value}</span>`;
+                    }
+                    
+                    if (node.scope) {
+                        html += ` <span class="node-scope">[${node.scope.join(' ')}]</span>`;
+                    }
+                    
+                    html += `</div>`;
+                    
+                    node.children.forEach(child => {
+                        renderNode(child, indent + 1);
+                    });
+                } else if (node.type === "Text") {
+                    html += `<div class="tree-node" style="margin-left:${padding}px;">`;
+                    html += `<span class="node-name">txt:</span> `;
+                    html += `<span class="node-value">${node.value}</span>`;
+                    html += `</div>`;
+                }
+            }
+            
+            renderNode(ast);
+            return html;
+        }
+        
+        // Compile CSS from AST
+        function compileCSS(ast) {
+            const output = [];
+            
+            function walk(node, selector = "") {
+                if (node.type === "Block" && node.name === "Style") {
+                    node.children.forEach(child => walk(child));
+                } else if (node.type === "Node" && (node.name.startsWith("#") || node.name.startsWith(".") || ["body", "html", "header", "footer", "div", "span", "button", "input"].includes(node.name))) {
+                    selector = node.name;
+                    const rules = [];
+                    
+                    node.children.forEach(prop => {
+                        if (prop.name && prop.value) {
+                            rules.push(`  ${translateCSSProp(prop.name)}: ${prop.value};`);
+                        }
+                    });
+                    
+                    if (rules.length > 0) {
+                        output.push(`${selector} {\n${rules.join("\n")}\n}`);
+                    }
+                    
+                    // Process nested selectors
+                    node.children.forEach(child => {
+                        if (child.type === "Node" && (child.name.startsWith("#") || child.name.startsWith("."))) {
+                            walk(child);
+                        }
+                    });
+                }
+            }
+            
+            function translateCSSProp(name) {
+                const map = {
+                    bg: "background",
+                    clr: "color",
+                    fw: "font-weight",
+                    pd: "padding",
+                    mg: "margin",
+                    fs: "font-size",
+                    bd: "border",
+                    ht: "height",
+                    wd: "width"
+                };
+                return map[name] || name;
+            }
+            
+            walk(ast);
+            return output.join("\n\n");
+        }
+        
+        // Compile HTML from AST
+        function compileHTML(ast) {
+            const html = [];
+            
+            function walk(node) {
+                if (node.type === "Block" && (node.name === "App" || node.name === "Element")) {
+                    node.children.forEach(child => walk(child));
+                } else if (node.type === "Node") {
+                    // Handle HTML elements
+                    if (["div", "span", "button", "input", "header", "footer", "p", "h1", "h2", "h3", "img"].includes(node.name)) {
+                        const tag = node.name;
+                        const id = node.children.find(n => n.name === "id")?.value || "";
+                        const className = node.children.find(n => n.name === "class")?.value || "";
+                        const textNode = node.children.find(n => n.name === "txt");
+                        const content = textNode ? textNode.value : "";
+                        
+                        let attrs = '';
+                        if (id) attrs += ` id="${id}"`;
+                        if (className) attrs += ` class="${className}"`;
+                        
+                        // Add other attributes
+                        node.children.forEach(child => {
+                            if (["id", "class", "txt"].includes(child.name)) return; // Skip already handled attrs
+                            
+                            if (child.name && child.value && !child.name.startsWith("*")) {
+                                attrs += ` ${child.name}="${child.value}"`;
+                            }
+                        });
+                        
+                        if (tag === "input") {
+                            html.push(`<${tag}${attrs}>`);
+                        } else {
+                            html.push(`<${tag}${attrs}>${content}</${tag}>`);
+                        }
+                    } else if (node.name.startsWith("#")) {
+                        // Handle id selector as div
+                        const tag = "div";
+                        const id = node.name.slice(1);
+                        const textNode = node.children.find(n => n.name === "txt");
+                        const content = textNode ? textNode.value : "";
+                        
+                        html.push(`<${tag} id="${id}">${content}</${tag}>`);
+                    } else if (node.name === "Header") {
+                        const textNode = node.children.find(n => n.name === "txt");
+                        const content = textNode ? textNode.value : "";
+                        html.push(`<header>${content}</header>`);
+                    }
+                } else if (node.type === "Text") {
+                    html.push(node.value);
+                }
+            }
+            
+            walk(ast);
+            return html.join("\n");
+        }
+        
+        // Compile JavaScript from AST
+        function compileJS(ast) {
+            const output = [];
+            
+            function walk(node) {
+                if (node.type === "Block" && node.name === "Script") {
+                    node.children.forEach(child => walk(child));
+                } else if (node.type === "Node" && node.name === "click->toggle-class") {
+                    const target = node.children.find(n => n.name.startsWith("#"))?.name;
+                    const val = node.children.find(n => n.value)?.value?.replace(/"/g, '');
+                    const scope = node.children.find(n => n.scope)?.scope[0] || "body";
+                    
+                    if (target && val) {
+                        output.push(`document.querySelector("${target}").addEventListener("click", () => {
+  document.querySelector("${scope}").classList.toggle("${val}");
+});`);
+                    }
+                }
+                
+                // Handle other JS blocks
+                if (node.children) {
+                    node.children.forEach(child => walk(child));
+                }
+            }
+            
+            walk(ast);
+            return output.join("\n\n");
+        }
+        
+        // Compile Python from AST
+        function compilePython(ast) {
+            const output = [];
+            
+            function indent(level) {
+                return "  ".repeat(level);
+            }
+            
+            function walk(node, level = 0) {
+                if (node.type === "Block" && node.name === "Function") {
+                    const funcName = node.children[0]?.name || "unnamed_function";
+                    const args = node.children[0]?.value || "";
+                    
+                    output.push(`def ${funcName}(${args}):`);
+                    
+                    node.children.slice(1).forEach(child => {
+                        if (child.name === "return") {
+                            output.push(indent(1) + `return ${child.value}`);
+                        } else {
+                            output.push(indent(1) + `${child.name} = ${child.value}`);
+                        }
+                    });
+                    
+                    // Add a blank line after each function
+                    output.push("");
+                }
+                
+                // Process child nodes
+                if (node.children) {
+                    node.children.forEach(child => {
+                        if (child.type === "Block") {
+                            walk(child, level);
+                        }
+                    });
+                }
+            }
+            
+            walk(ast);
+            return output.join("\n");
+        }
+        
+function wrapHTML(html, css, js) {
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AMLMG Output</title>
+    <style>${css}</style>
+</head>
+<body>
+${html}
+<script>${js}</script>
+</body>
+</html>`;
+}
+        <script>
+            // Tab switching
+document.querySelectorAll('.tab-btn').forEach(button => {
+                button.addEventListener('click', () => {
+                    // Remove active class from all tabs
+                    document.querySelectorAll('.tab-btn').forEach(btn => {
+                        btn.classList.remove('border-b-2', 'border-primary');
+                    });
+                    
+                    // Add active class to clicked tab
+                    button.classList.add('border-b-2', 'border-primary');
+                    
+                    // Hide all tab content
+                    document.querySelectorAll('.tab-content').forEach(content => {
+                        content.classList.add('hidden');
+                    });
+                    
+                    // Show selected tab content
+                    const tabId = button.getAttribute('data-tab') + 'Tab';
+                    document.getElementById(tabId).classList.remove('hidden');
+                });
+            });
+            
+            // Process AMLMG code
+            document.getElementById('parseBtn').addEventListener('click', () => {
+                const source = document.getElementById('editor').value;
+                try {
+                    // Tokenize and parse
+                    const tokens = tokenize(source);
+                    const ast = parse(tokens);
+                    
+                    // Update AST visualization
+                    document.getElementById('astView').innerHTML = visualizeAST(ast);
+                    
+                    // Compile to different languages
+                    const html = compileHTML(ast);
+                    const css = compileCSS(ast);
+                    const js = compileJS(ast);
+                    const py = compilePython(ast);
+                    
+                    // Update output displays
+                    document.getElementById('htmlOutput').textContent = html;
+                    document.getElementById('cssOutput').textContent = css;
+                    document.getElementById('jsOutput').textContent = js;
+                    document.getElementById('pyOutput').textContent = py;
+                    
+                    // Generate complete HTML for the iframe
+                    const fullHTML = wrapHTML(html, css, js);
+                    
+                    // Store for the Run button to use
+                    window.compiledHTML = fullHTML;
+                    
+                    // Show success message
+                    alert("AMLMG code parsed and compiled successfully!");
+                } catch (error) {
+                    console.error("Error parsing AMLMG:", error);
+                    alert("Error parsing AMLMG: " + error.message);
+                }
+            });
+            
+            // Run compiled code
+            document.getElementById('runBtn').addEventListener('click', () => {
+                if (!window.compiledHTML) {
+                    alert("Please compile the code first!");
+                    return;
+                }
+                
+                const resultFrame = document.getElementById('resultFrame');
+                
+                // Switch to result tab
+                document.querySelectorAll('.tab-btn').forEach(btn => {
+                    btn.classList.remove('border-b-2', 'border-primary');
+                    if (btn.getAttribute('data-tab') === 'result') {
+                        btn.classList.add('border-b-2', 'border-primary');
+                    }
+                });
+                
+                document.querySelectorAll('.tab-content').forEach(content => {
+                    content.classList.add('hidden');
+                });
+                document.getElementById('resultTab').classList.remove('hidden');
+                
+                // Write the compiled HTML to the iframe
+                resultFrame.srcdoc = window.compiledHTML;
+            });
+            
+// Clear button
+document.getElementById('clearBtn').addEventListener('click', () => {
+    if (confirm("Are you sure you want to clear the editor?")) {
+        document.getElementById('editor').value = "";
+        document.getElementById('astView').innerHTML = "";
+        document.getElementById('htmlOutput').textContent = "";
+        document.getElementById('cssOutput').textContent = "";
+        document.getElementById('jsOutput').textContent = "";
+        document.getElementById('pyOutput').textContent = "";
+        document.getElementById('resultFrame').srcdoc = "";
+        window.compiledHTML = null;
+    }
+});
+</script>
+</body>
+</html>
